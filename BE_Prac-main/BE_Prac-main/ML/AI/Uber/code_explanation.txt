@@ -1,0 +1,798 @@
+UBER FARE PREDICTION - CODE EXPLANATION
+=======================================
+
+This notebook implements Uber ride fare prediction using Linear Regression and Random Forest Regression algorithms.
+The goal is to predict ride fares based on features like distance, time, passenger count, and pickup details.
+
+================================================================================
+SECTION 1: IMPORTING CORE LIBRARIES
+================================================================================
+
+import pandas as pd                        # For handling and manipulating structured data in tabular form
+import numpy as np                         # For performing numerical computations efficiently
+import matplotlib.pyplot as plt             # For creating static visualizations and plots
+import seaborn as sns                       # For creating attractive and informative statistical graphics
+
+Line Explanation:
+- import pandas as pd: Imports pandas for data manipulation and analysis.
+  - Works with structured data in DataFrame format
+  - Provides powerful data cleaning and transformation tools
+- import numpy as np: Imports NumPy for numerical computing.
+  - Handles array operations efficiently
+  - Provides mathematical functions
+- import matplotlib.pyplot as plt: Imports matplotlib for creating visualizations.
+  - Creates various types of plots (scatter, line, bar, etc.)
+  - Core Python plotting library
+- import seaborn as sns: Imports seaborn for statistical data visualization.
+  - Built on top of matplotlib
+  - Provides attractive default styles and color palettes
+  - Simplifies complex visualizations
+
+================================================================================
+SECTION 2: IMPORTING MACHINE LEARNING TOOLS
+================================================================================
+
+from sklearn.model_selection import train_test_split   # To split dataset into training and testing sets
+from sklearn.linear_model import LinearRegression       # Linear Regression algorithm
+from sklearn.ensemble import RandomForestRegressor      # Random Forest Regression algorithm
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error  # For model performance evaluation
+
+Line Explanation:
+- from sklearn.model_selection import train_test_split: Imports function to divide data into train/test sets.
+- from sklearn.linear_model import LinearRegression: Imports Linear Regression algorithm.
+  - Simple regression model assuming linear relationship between features and target
+  - Fast training and prediction
+  - Easy to interpret
+- from sklearn.ensemble import RandomForestRegressor: Imports Random Forest algorithm.
+  - Ensemble method combining multiple decision trees
+  - Handles non-linear relationships
+  - More powerful but slower than Linear Regression
+- from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error: Imports evaluation metrics.
+  - r2_score: Coefficient of determination (how well model explains variance)
+  - mean_squared_error: Average of squared differences between actual and predicted
+  - mean_absolute_error: Average of absolute differences
+
+================================================================================
+SECTION 3: SETTING VISUALIZATION STYLES
+================================================================================
+
+plt.style.use('ggplot')                    # Use the 'ggplot' style for consistent, clean visualizations
+sns.set_style('whitegrid')                 # Add a white grid background for Seaborn plots
+
+Line Explanation:
+- plt.style.use('ggplot'): Sets matplotlib plot style to 'ggplot'.
+  - Creates plots with a style similar to R's ggplot2 library
+  - Provides clean, professional-looking visualizations
+  - Applies consistent colors, fonts, and backgrounds
+- sns.set_style('whitegrid'): Sets seaborn style with white grid background.
+  - Adds subtle grid lines for easier reading
+  - Improves plot clarity and professionalism
+
+================================================================================
+SECTION 4: LOADING THE DATASET
+================================================================================
+
+df = pd.read_csv('uber.csv')               # Load the Uber dataset from a CSV file into a Pandas DataFrame
+
+Line Explanation:
+- df = pd.read_csv('uber.csv'): Loads the Uber ride dataset into a DataFrame.
+- Dataset typically contains:
+  - key: Unique identifier for each ride
+  - pickup_datetime: When the ride started
+  - pickup_longitude, pickup_latitude: Pickup location coordinates
+  - dropoff_longitude, dropoff_latitude: Drop-off location coordinates
+  - passenger_count: Number of passengers
+  - fare_amount: Target variable (ride cost)
+
+---
+
+df.head(5)
+
+Line Explanation:
+- df.head(5): Displays the first 5 rows of the dataset for initial inspection.
+
+================================================================================
+SECTION 5: REMOVING UNNECESSARY COLUMNS
+================================================================================
+
+# Drop unnecessary column
+if 'key' in df.columns:                    # Check if the dataset contains the 'key' column
+    df = df.drop('key', axis=1)            # Drop the 'key' column since it's not useful for modeling
+
+Line Explanation:
+- Comment: Explains we're removing an unnecessary column
+- if 'key' in df.columns:: Checks if 'key' column exists in the DataFrame
+  - Prevents error if column doesn't exist
+  - Good defensive programming practice
+- df = df.drop('key', axis=1): Removes the 'key' column
+  - 'key' is just a unique identifier, not predictive
+  - axis=1 indicates we're dropping a column (axis=0 would drop rows)
+
+================================================================================
+SECTION 6: IDENTIFYING MISSING VALUES
+================================================================================
+
+# Handle missing values
+print(f"Missing values before cleaning:\n{df.isnull().sum()}")   # Display count of missing values in each column
+
+Line Explanation:
+- Comment: Indicates we're handling missing data
+- print(f"Missing values before cleaning:\n{df.isnull().sum()}"): Shows missing value counts
+  - df.isnull(): Returns DataFrame with True for missing values, False otherwise
+  - .sum(): Counts True values (missing values) for each column
+  - f-string formatting for clear output
+  - \n adds newline for better readability
+
+================================================================================
+SECTION 7: FILLING MISSING NUMERIC VALUES
+================================================================================
+
+for col in df.select_dtypes(include=[np.number]).columns:   # Loop through numeric columns only
+    df[col] = df[col].fillna(df[col].median())               # Replace missing numeric values with column median
+
+Line Explanation:
+- for col in df.select_dtypes(include=[np.number]).columns:: Loops through numeric columns
+  - df.select_dtypes(include=[np.number]): Selects only columns with numeric data types
+  - .columns: Gets column names
+  - Ensures we only impute numeric columns (not text or dates)
+- df[col] = df[col].fillna(df[col].median()): Fills missing values
+  - .fillna(): Replaces null/NaN values
+  - df[col].median(): Uses the median value of the column
+  - Median is robust to outliers (better than mean for skewed data)
+
+================================================================================
+SECTION 8: PROCESSING DATETIME COLUMN
+================================================================================
+
+# Convert pickup_datetime column to proper datetime format
+df['pickup_datetime'] = pd.to_datetime(df['pickup_datetime'], errors='coerce')  # Convert to datetime; coerce invalid ones to NaT
+df.dropna(subset=['pickup_datetime'], inplace=True)          # Drop rows where pickup_datetime could not be parsed
+
+Line Explanation:
+- Comment: Explains datetime conversion
+- df['pickup_datetime'] = pd.to_datetime(df['pickup_datetime'], errors='coerce'): Converts to datetime
+  - pd.to_datetime(): Converts string to datetime format
+  - errors='coerce': Invalid dates become NaT (Not a Time) instead of raising errors
+  - Allows extraction of time features (year, month, hour, etc.)
+- df.dropna(subset=['pickup_datetime'], inplace=True): Removes invalid datetime rows
+  - subset=['pickup_datetime']: Only checks this column for nulls
+  - inplace=True: Modifies DataFrame directly without creating a copy
+
+---
+
+print(f"\nMissing values after cleaning:\n{df.isnull().sum()}")  # Show remaining missing values
+
+Line Explanation:
+- Displays missing value counts after cleaning to verify data quality
+
+================================================================================
+SECTION 9: FEATURE ENGINEERING - EXTRACTING TIME FEATURES
+================================================================================
+
+df['year'] = df['pickup_datetime'].dt.year           # Extract year from pickup datetime
+df['month'] = df['pickup_datetime'].dt.month         # Extract month
+df['day'] = df['pickup_datetime'].dt.day             # Extract day of month
+df['day_of_week'] = df['pickup_datetime'].dt.dayofweek  # Extract day of week (0 = Monday)
+df['hour'] = df['pickup_datetime'].dt.hour           # Extract hour of the day (0–23)
+
+Line Explanation:
+- These lines extract temporal features from the pickup_datetime column:
+  - df['year']: Year (e.g., 2015)
+  - df['month']: Month (1-12, where 1=January)
+  - df['day']: Day of month (1-31)
+  - df['day_of_week']: Weekday (0-6, where 0=Monday, 6=Sunday)
+  - df['hour']: Hour of day (0-23)
+- dt accessor: Allows access to datetime properties
+- Why extract these features?
+  - Fares may vary by time of day (rush hour vs. late night)
+  - Day of week affects demand (weekday vs. weekend)
+  - Seasonal patterns (month, year)
+  - Models can learn temporal patterns
+
+================================================================================
+SECTION 10: FEATURE ENGINEERING - CALCULATING DISTANCE
+================================================================================
+
+def haversine_vectorized(lat1, lon1, lat2, lon2):
+    R = 6371                                       # Radius of Earth in kilometers
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])   # Convert degrees to radians
+    dlat = lat2 - lat1                             # Difference in latitude
+    dlon = lon2 - lon1                             # Difference in longitude
+    a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2  # Haversine formula
+    return 2 * R * np.arcsin(np.sqrt(a))           # Return distance in kilometers
+
+Line Explanation:
+- def haversine_vectorized(lat1, lon1, lat2, lon2):: Defines function to calculate distance
+- R = 6371: Earth's radius in kilometers (constant)
+- map(np.radians, [lat1, lon1, lat2, lon2]): Converts all coordinates from degrees to radians
+  - Trigonometric functions require radians
+  - map applies np.radians to all four coordinates
+- dlat = lat2 - lat1: Calculates latitude difference
+- dlon = lon2 - lon1: Calculates longitude difference
+- a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2: Haversine formula
+  - Calculates great-circle distance between two points on a sphere
+  - Accounts for Earth's curvature
+  - More accurate than simple Euclidean distance for geographic coordinates
+- return 2 * R * np.arcsin(np.sqrt(a)): Final distance calculation
+  - Returns distance in kilometers
+  - _vectorized in name means it works on arrays (not just single values)
+
+---
+
+# Compute and add new column for distance between pickup and dropoff
+df['distance_km'] = haversine_vectorized(
+    df['pickup_latitude'], df['pickup_longitude'],
+    df['dropoff_latitude'], df['dropoff_longitude']
+)
+
+Line Explanation:
+- Comment: Explains we're calculating trip distance
+- df['distance_km'] = haversine_vectorized(...): Creates new distance column
+  - Passes pickup and dropoff coordinates to the function
+  - Applies calculation to all rows simultaneously (vectorized operation)
+  - Result: distance in kilometers for each ride
+  - Distance is typically the strongest predictor of fare
+
+================================================================================
+SECTION 11: DROPPING RAW COORDINATE COLUMNS
+================================================================================
+
+# Drop raw coordinate and datetime columns after distance calculation
+df = df.drop([
+    'pickup_datetime', 'pickup_longitude', 'pickup_latitude',
+    'dropoff_longitude', 'dropoff_latitude'
+], axis=1)
+
+Line Explanation:
+- Comment: Explains we're removing processed columns
+- df = df.drop([...], axis=1): Removes multiple columns
+  - 'pickup_datetime': Already extracted time features from it
+  - Coordinate columns: Already used to calculate distance
+  - These raw columns are no longer needed
+  - Simplifies the dataset
+  - axis=1: Drops columns
+
+---
+
+print("\nData preprocessing complete.")   # Confirm preprocessing done
+
+Line Explanation:
+- Prints confirmation message that data preprocessing steps are finished.
+
+================================================================================
+SECTION 12: VISUALIZING DATA BEFORE OUTLIER REMOVAL
+================================================================================
+
+print("\n--- Visualizing distributions BEFORE removing outliers ---")
+
+plt.figure(figsize=(15,5))                                # Create figure with specific size
+
+Line Explanation:
+- print statement: Indicates we're about to show distribution plots
+- plt.figure(figsize=(15,5)): Creates a figure for plotting
+  - figsize=(15,5): Width=15 inches, Height=5 inches
+  - Large width accommodates three subplots side by side
+
+---
+
+plt.subplot(1,3,1)
+sns.boxplot(x=df['fare_amount'])                           # Boxplot for fare amount
+plt.title('Fare Amount (Before)')
+
+Line Explanation:
+- plt.subplot(1,3,1): Creates first subplot in a 1-row, 3-column grid
+  - 1,3,1 means: 1 row, 3 columns, position 1
+- sns.boxplot(x=df['fare_amount']): Creates box plot of fare amounts
+  - Shows distribution, median, quartiles, and outliers
+  - Visual representation of data spread
+- plt.title('Fare Amount (Before)'): Sets subplot title
+
+---
+
+plt.subplot(1,3,2)
+sns.boxplot(x=df['distance_km'])                           # Boxplot for distance
+plt.title('Distance (Before)')
+
+Line Explanation:
+- Second subplot (position 2) showing distance distribution
+
+---
+
+plt.subplot(1,3,3)
+sns.boxplot(x=df['passenger_count'])                       # Boxplot for passenger count
+plt.title('Passenger Count (Before)')
+
+Line Explanation:
+- Third subplot (position 3) showing passenger count distribution
+
+---
+
+plt.tight_layout()                                         # Adjust layout to avoid overlapping
+plt.show()                                                 # Display plots
+
+Line Explanation:
+- plt.tight_layout(): Automatically adjusts spacing between subplots
+  - Prevents titles and labels from overlapping
+- plt.show(): Renders and displays the complete figure
+
+================================================================================
+SECTION 13: DEFINING OUTLIER REMOVAL FUNCTION
+================================================================================
+
+print("\n--- Removing Outliers using IQR ---")
+
+def remove_outliers_iqr(df, column, min_value=None):
+    Q1 = df[column].quantile(0.25)                  # 25th percentile
+    Q3 = df[column].quantile(0.75)                  # 75th percentile
+    IQR = Q3 - Q1                                   # Interquartile range (IQR)
+    lower = Q1 - 1.5 * IQR                          # Lower bound
+    upper = Q3 + 1.5 * IQR                          # Upper bound
+    if min_value is not None:                       # If minimum threshold is given
+        lower = max(lower, min_value)               # Ensure lower bound is not below logical min
+    print(f"{column}: removing outside [{lower:.2f}, {upper:.2f}]")  # Display removal range
+    return df[(df[column] >= lower) & (df[column] <= upper)]  # Filter data within range
+
+Line Explanation:
+- print statement: Indicates outlier removal process
+- def remove_outliers_iqr(df, column, min_value=None):: Defines outlier removal function
+  - df: DataFrame to process
+  - column: Column name to check for outliers
+  - min_value: Optional minimum logical value (e.g., fare can't be negative)
+- Q1 = df[column].quantile(0.25): Calculates 25th percentile (first quartile)
+  - 25% of data is below this value
+- Q3 = df[column].quantile(0.75): Calculates 75th percentile (third quartile)
+  - 75% of data is below this value
+- IQR = Q3 - Q1: Calculates Interquartile Range
+  - Range containing middle 50% of data
+  - Measure of statistical dispersion
+- lower = Q1 - 1.5 * IQR: Calculates lower outlier threshold
+  - Standard IQR method for outlier detection
+  - Values below this are considered outliers
+- upper = Q3 + 1.5 * IQR: Calculates upper outlier threshold
+  - Values above this are considered outliers
+- if min_value is not None:: Checks if logical minimum is provided
+  - lower = max(lower, min_value): Ensures lower bound makes sense
+    - Example: fare_amount shouldn't be negative, so min_value=0
+- print(f"{column}: removing outside [{lower:.2f}, {upper:.2f}]"): Shows removal range
+- return df[(df[column] >= lower) & (df[column] <= upper)]: Returns filtered DataFrame
+  - Keeps only rows where column value is within bounds
+  - & is logical AND operator
+
+================================================================================
+SECTION 14: APPLYING OUTLIER REMOVAL
+================================================================================
+
+# Apply outlier removal on important columns
+df = remove_outliers_iqr(df, 'fare_amount', min_value=0)
+df = remove_outliers_iqr(df, 'distance_km', min_value=0)
+df = remove_outliers_iqr(df, 'passenger_count', min_value=1)
+
+Line Explanation:
+- Comment: Indicates we're applying the outlier removal function
+- df = remove_outliers_iqr(df, 'fare_amount', min_value=0): Removes fare outliers
+  - min_value=0: Fares can't be negative
+  - Removes unrealistic fares (too low or too high)
+- df = remove_outliers_iqr(df, 'distance_km', min_value=0): Removes distance outliers
+  - min_value=0: Distance can't be negative
+  - Removes unrealistic trips (too short or too long)
+- df = remove_outliers_iqr(df, 'passenger_count', min_value=1): Removes passenger count outliers
+  - min_value=1: At least one passenger required
+  - Removes data quality issues (0 passengers or unrealistic counts)
+
+---
+
+# Ensure passenger count is integer type
+df['passenger_count'] = df['passenger_count'].astype(int)
+
+Line Explanation:
+- Comment: Explains we're converting to integer
+- df['passenger_count'].astype(int): Converts passenger count to integer type
+  - Passengers should be whole numbers (can't have 2.5 passengers)
+  - After outlier removal, may be stored as float
+
+---
+
+print(f"Dataset shape after outlier removal: {df.shape}")   # Show resulting dataset shape
+
+Line Explanation:
+- Displays the new shape of the dataset after removing outliers
+- Shows how many rows were removed
+
+================================================================================
+SECTION 15: VISUALIZING DATA AFTER OUTLIER REMOVAL
+================================================================================
+
+plt.figure(figsize=(15,5))
+
+Line Explanation:
+- Creates new figure for "after" boxplots
+
+---
+
+plt.subplot(1,3,1)
+sns.boxplot(x=df['fare_amount'])
+plt.title('Fare Amount (After)')
+
+Line Explanation:
+- First subplot showing fare amount distribution after outlier removal
+
+---
+
+plt.subplot(1,3,2)
+sns.boxplot(x=df['distance_km'])
+plt.title('Distance (After)')
+
+Line Explanation:
+- Second subplot showing distance distribution after cleaning
+
+---
+
+plt.subplot(1,3,3)
+sns.boxplot(x=df['passenger_count'])
+plt.title('Passenger Count (After)')
+
+Line Explanation:
+- Third subplot showing passenger count after cleaning
+
+---
+
+plt.tight_layout()
+plt.show()
+
+Line Explanation:
+- Adjusts layout and displays the "after" boxplots
+- Allows visual comparison with "before" plots
+
+================================================================================
+SECTION 16: CORRELATION ANALYSIS
+================================================================================
+
+print("\n--- Checking Correlation ---")
+
+plt.figure(figsize=(10,8))                              # Define plot size
+sns.heatmap(df.corr(numeric_only=True),                 # Compute correlation matrix
+            annot=True, cmap='coolwarm', fmt=".2f")     # Annotate values and use color scale
+plt.title('Correlation Matrix')                         # Add title
+plt.show()
+
+Line Explanation:
+- print statement: Indicates correlation analysis
+- plt.figure(figsize=(10,8)): Creates figure (10x8 inches)
+- sns.heatmap(): Creates a heatmap visualization
+  - df.corr(numeric_only=True): Computes correlation matrix
+    - Measures linear relationship between all numeric variables
+    - Values range from -1 to +1
+    - +1: Perfect positive correlation
+    - -1: Perfect negative correlation
+    - 0: No linear correlation
+    - numeric_only=True: Only includes numeric columns
+  - annot=True: Displays correlation values on the heatmap
+  - cmap='coolwarm': Color scheme (blue for negative, red for positive)
+  - fmt=".2f": Formats numbers to 2 decimal places
+- plt.title('Correlation Matrix'): Sets heatmap title
+- plt.show(): Displays the heatmap
+- Purpose: Identify which features are most correlated with fare_amount
+
+================================================================================
+SECTION 17: PREPARING FEATURES AND TARGET
+================================================================================
+
+features = ['passenger_count','distance_km','year','month','day','day_of_week','hour']  # Independent variables
+target = 'fare_amount'                                                                     # Dependent variable
+
+X = df[features]                     # Feature matrix (input)
+y = df[target]                       # Target vector (output)
+
+Line Explanation:
+- features = [...]:: Lists independent variables (predictors)
+  - passenger_count: Number of passengers
+  - distance_km: Trip distance
+  - year, month, day, day_of_week, hour: Temporal features
+  - These are the inputs the model will use to make predictions
+- target = 'fare_amount': Defines the dependent variable
+  - This is what we want to predict
+- X = df[features]: Creates feature matrix
+  - Contains all input features for all samples
+- y = df[target]: Creates target vector
+  - Contains the fare amounts we want to predict
+
+================================================================================
+SECTION 18: TRAIN-TEST SPLIT
+================================================================================
+
+# ==========================================
+# 🔹 Splitting Dataset into Training and Testing Sets
+# ==========================================
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42)   # 80% train, 20% test split, fixed random seed for reproducibility
+
+print(f"Training samples: {X_train.shape[0]}, Testing samples: {X_test.shape[0]}")  # Display split sizes
+
+Line Explanation:
+- Comments: Section header with decorative formatting
+- train_test_split(): Divides data into training and testing sets
+  - X, y: Features and target to split
+  - test_size=0.2: 20% of data for testing, 80% for training
+  - random_state=42: Sets random seed for reproducibility
+- X_train: Training features (80%)
+- X_test: Testing features (20%)
+- y_train: Training target (80%)
+- y_test: Testing target (20%)
+- print statement: Shows how many samples in each set
+
+================================================================================
+SECTION 19: TRAINING MODELS
+================================================================================
+
+# ==========================================
+# 🔹 Model Training (Linear Regression & Random Forest)
+# ==========================================
+
+linear_model = LinearRegression().fit(X_train, y_train)             # Train Linear Regression model
+random_forest_model = RandomForestRegressor(                        # Initialize Random Forest model
+    n_estimators=100,            # Number of decision trees
+    random_state=42,             # Random seed for consistency
+    n_jobs=-1                    # Use all CPU cores for faster training
+).fit(X_train, y_train)          # Train model on training data
+
+print("Model trained")            # Confirm training complete
+
+Line Explanation:
+- Comments: Section header
+- linear_model = LinearRegression().fit(X_train, y_train): Trains Linear Regression
+  - LinearRegression(): Creates model instance
+  - .fit(X_train, y_train): Trains on training data
+  - Learns linear relationship between features and target
+  - Fast training
+- random_forest_model = RandomForestRegressor(...).fit(X_train, y_train): Trains Random Forest
+  - RandomForestRegressor(): Creates Random Forest instance
+  - n_estimators=100: Uses 100 decision trees
+    - More trees = better performance but slower
+  - random_state=42: Ensures reproducibility
+  - n_jobs=-1: Uses all available CPU cores for parallel processing
+    - Speeds up training significantly
+  - .fit(X_train, y_train): Trains on training data
+  - Ensemble of trees captures non-linear patterns
+- print("Model trained"): Confirmation message
+
+================================================================================
+SECTION 20: DEFINING MODEL EVALUATION FUNCTION
+================================================================================
+
+# ==========================================
+# 🔹 Model Evaluation Function
+# ==========================================
+
+def evaluate_model(model, X_test, y_test, name):
+    y_pred = model.predict(X_test)                         # Predict fares for test data
+    r2 = r2_score(y_test, y_pred)                          # Calculate R² (coefficient of determination)
+    mae = mean_absolute_error(y_test, y_pred)              # Mean Absolute Error
+    mse = mean_squared_error(y_test, y_pred)               # Mean Squared Error
+    rmse = np.sqrt(mse)                                    # Root Mean Squared Error
+    print(f"\n{name}: R2={r2:.4f}, MAE={mae:.4f}, MSE={mse:.4f}, RMSE={rmse:.4f}")  # Display metrics
+    return y_pred, r2, mae, rmse                           # Return results for comparison
+
+Line Explanation:
+- Comments: Section header
+- def evaluate_model(model, X_test, y_test, name):: Defines evaluation function
+  - model: Trained model to evaluate
+  - X_test: Test features
+  - y_test: Actual test target values
+  - name: Model name for display
+- y_pred = model.predict(X_test): Makes predictions on test data
+- r2 = r2_score(y_test, y_pred): Calculates R² score
+  - Measures how well model explains variance in target
+  - Range: 0 to 1 (higher is better)
+  - 1 = perfect predictions, 0 = no better than mean
+- mae = mean_absolute_error(y_test, y_pred): Calculates MAE
+  - Average absolute difference between actual and predicted
+  - Easy to interpret (in same units as target)
+- mse = mean_squared_error(y_test, y_pred): Calculates MSE
+  - Average squared difference
+  - Penalizes large errors more heavily
+- rmse = np.sqrt(mse): Calculates RMSE
+  - Square root of MSE
+  - Same units as target (more interpretable than MSE)
+- print statement: Displays all metrics with 4 decimal places
+- return y_pred, r2, mae, rmse: Returns predictions and metrics
+
+================================================================================
+SECTION 21: EVALUATING BOTH MODELS
+================================================================================
+
+# Evaluate both models
+y_pred_lr, lr_r2, lr_mae, lr_rmse = evaluate_model(linear_model, X_test, y_test, "Linear Regression")
+y_pred_rf, rf_r2, rf_mae, rf_rmse = evaluate_model(random_forest_model, X_test, y_test, "Random Forest")
+
+Line Explanation:
+- Comment: Indicates we're evaluating both models
+- First line: Evaluates Linear Regression model
+  - Returns predictions and all metrics
+  - Stores in variables with lr_ prefix
+- Second line: Evaluates Random Forest model
+  - Returns predictions and all metrics
+  - Stores in variables with rf_ prefix
+- Allows direct comparison of model performance
+
+================================================================================
+SECTION 22: COMPARING MODEL PERFORMANCE
+================================================================================
+
+# ==========================================
+# 🔹 Model Comparison
+# ==========================================
+
+print("\n--- Model Comparison ---")
+
+if rf_rmse < lr_rmse:                                     # Compare RMSE values of both models
+    print("Random Forest performs better (lower RMSE).")   # Random Forest better
+else:
+    print("Linear Regression performs better (lower RMSE).")  # Linear Regression better
+
+Line Explanation:
+- Comments: Section header
+- print("\n--- Model Comparison ---"): Prints comparison header
+- if rf_rmse < lr_rmse:: Compares RMSE values
+  - RMSE = Root Mean Squared Error
+  - Lower RMSE means better predictions
+- Prints which model performs better based on RMSE
+- RMSE is chosen because it's in same units as target (dollars)
+
+================================================================================
+SECTION 23: VISUALIZING PREDICTIONS - SETUP
+================================================================================
+
+# ==========================================
+# 🔹 Visual Comparison: Actual vs Predicted Fares
+# ==========================================
+
+plt.figure(figsize=(8,6))                               # Define figure size
+
+Line Explanation:
+- Comments: Section header
+- plt.figure(figsize=(8,6)): Creates figure for comparison plot
+
+================================================================================
+SECTION 24: VISUALIZING PREDICTIONS - LINEAR REGRESSION
+================================================================================
+
+plt.scatter(y_test, y_pred_lr, alpha=0.5,               # Scatter plot for Linear Regression predictions
+            label="Linear Regression", color='blue')
+
+Line Explanation:
+- plt.scatter(): Creates scatter plot
+  - y_test: Actual fares (X-axis)
+  - y_pred_lr: Predicted fares from Linear Regression (Y-axis)
+  - alpha=0.5: 50% transparency (helps see overlapping points)
+  - label="Linear Regression": Legend label
+  - color='blue': Blue points for Linear Regression
+
+================================================================================
+SECTION 25: VISUALIZING PREDICTIONS - RANDOM FOREST
+================================================================================
+
+plt.scatter(y_test, y_pred_rf, alpha=0.5,               # Scatter plot for Random Forest predictions
+            label="Random Forest", color='green')
+
+Line Explanation:
+- Similar to previous but for Random Forest predictions
+- color='green': Green points to distinguish from Linear Regression
+
+================================================================================
+SECTION 26: VISUALIZING PREDICTIONS - PERFECT FIT LINE
+================================================================================
+
+plt.plot([0,25],[0,25],'k--', label="Perfect Fit")      # Reference line showing perfect prediction
+
+Line Explanation:
+- plt.plot([0,25],[0,25],'k--', label="Perfect Fit"): Draws diagonal reference line
+  - [0,25]: X coordinates (from 0 to 25)
+  - [0,25]: Y coordinates (from 0 to 25)
+  - 'k--': Black dashed line
+  - Points on this line = perfect predictions (actual = predicted)
+  - Points above line = over-predictions
+  - Points below line = under-predictions
+
+================================================================================
+SECTION 27: VISUALIZING PREDICTIONS - FINISHING
+================================================================================
+
+plt.xlabel("Actual Fare")                               # X-axis label
+plt.ylabel("Predicted Fare")                            # Y-axis label
+plt.legend()                                            # Add legend
+plt.title("Actual vs Predicted Fares")                  # Plot title
+plt.show()                                              # Display plot
+
+Line Explanation:
+- plt.xlabel("Actual Fare"): Labels X-axis
+- plt.ylabel("Predicted Fare"): Labels Y-axis
+- plt.legend(): Displays legend showing which color represents which model
+- plt.title("Actual vs Predicted Fares"): Sets plot title
+- plt.show(): Renders and displays the complete plot
+
+================================================================================
+SECTION 28: ALTERNATIVE VISUALIZATION (IMPROVED VERSION)
+================================================================================
+
+plt.figure(figsize=(8,6))
+
+# Scatter plot for Linear Regression predictions
+plt.scatter(y_test, y_pred_lr, alpha=0.5, color='blue', label='Linear Regression')
+
+# Scatter plot for Random Forest predictions
+plt.scatter(y_test, y_pred_rf, alpha=0.5, color='green', label='Random Forest')
+
+# Reference line for perfect fit
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', label='Perfect Fit')
+
+plt.xlabel("Actual Fare")         # X-axis label
+plt.ylabel("Predicted Fare")      # Y-axis label
+plt.title("Actual vs Predicted Fares")   # Title
+plt.legend()                      # ✅ Show legend
+plt.show()                        # Display plot
+
+Line Explanation:
+- This section repeats the visualization with an improvement
+- plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', label='Perfect Fit'):
+  - Uses y_test.min() and y_test.max() for dynamic range
+  - More robust than hardcoded [0,25]
+  - Adapts to actual data range
+- Comments include ✅ checkmark for clarity
+- Otherwise identical to previous visualization
+
+================================================================================
+SUMMARY
+================================================================================
+
+This notebook demonstrates Uber fare prediction using regression algorithms:
+
+1. Data Loading & Exploration:
+   - Loads Uber ride dataset
+   - Examines structure and quality
+
+2. Data Cleaning:
+   - Removes unnecessary columns (key)
+   - Fills missing numeric values with median
+   - Processes datetime column
+
+3. Feature Engineering:
+   - Extracts time features (year, month, day, day_of_week, hour)
+   - Calculates trip distance using Haversine formula
+   - Creates meaningful predictive features
+
+4. Outlier Removal:
+   - Uses IQR method to identify and remove outliers
+   - Applies to fare_amount, distance_km, passenger_count
+   - Visualizes before and after distributions
+
+5. Correlation Analysis:
+   - Creates heatmap showing feature correlations
+   - Identifies strongest predictors of fare
+
+6. Model Training:
+   - Linear Regression: Simple, interpretable baseline
+   - Random Forest: Ensemble method for non-linear patterns
+
+7. Model Evaluation:
+   - Calculates multiple metrics (R², MAE, MSE, RMSE)
+   - Compares model performance
+   - Visualizes predictions vs. actual fares
+
+8. Results Visualization:
+   - Scatter plot showing actual vs predicted fares
+   - Perfect fit reference line
+   - Color-coded by model
+
+Key Insights:
+- Distance is typically the strongest predictor of fare
+- Time features capture demand patterns (rush hour, weekends)
+- Random Forest usually outperforms Linear Regression (handles non-linearity)
+- Outlier removal improves model performance
+- RMSE provides interpretable error metric in dollars
+
+Business Applications:
+- Dynamic pricing strategies
+- Fare estimation for customers
+- Driver earnings prediction
+- Demand forecasting by time and location

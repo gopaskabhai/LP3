@@ -1,0 +1,391 @@
+CUSTOMER CHURN PREDICTION - CODE EXPLANATION
+============================================
+
+This notebook implements customer churn prediction using Artificial Neural Networks (ANN) with TensorFlow/Keras.
+Churn prediction helps identify customers likely to leave a service, enabling proactive retention strategies.
+
+================================================================================
+SECTION 1: IMPORTING BASIC LIBRARIES
+================================================================================
+
+import pandas as pd
+import numpy as np
+
+Line Explanation:
+- import pandas as pd: Imports the pandas library for data manipulation and analysis.
+  - Used for loading CSV files and working with structured data in DataFrames
+- import numpy as np: Imports NumPy for numerical operations and array manipulations.
+  - Provides efficient mathematical operations on large datasets
+
+================================================================================
+SECTION 2: IMPORTING SCIKIT-LEARN TOOLS
+================================================================================
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import confusion_matrix, accuracy_score
+
+Line Explanation:
+- from sklearn.model_selection import train_test_split: Imports function to split data into training and testing sets.
+- from sklearn.preprocessing import StandardScaler, OneHotEncoder:
+  - StandardScaler: Normalizes numerical features to have mean=0 and standard deviation=1
+  - OneHotEncoder: Converts categorical variables into binary columns (imported but not used directly)
+- from sklearn.compose import ColumnTransformer: Allows applying different preprocessing steps to different columns (imported but not used).
+- from sklearn.pipeline import Pipeline: Creates a sequential workflow of data transformations (imported but not used).
+- from sklearn.metrics import confusion_matrix, accuracy_score: Imports evaluation metrics.
+
+================================================================================
+SECTION 3: LOADING THE DATASET
+================================================================================
+
+df = pd.read_csv("Churn_Modelling.csv")
+
+Line Explanation:
+- df = pd.read_csv("Churn_Modelling.csv"): Loads the customer churn dataset from a CSV file.
+- The dataset contains customer information like:
+  - Demographics: Geography, Gender, Age
+  - Account details: Tenure, Balance, NumOfProducts
+  - Behavior: HasCrCard, IsActiveMember, EstimatedSalary
+  - Target: Exited (1 = customer left, 0 = customer stayed)
+
+================================================================================
+SECTION 4: INITIAL DATA EXPLORATION
+================================================================================
+
+print(df.head())
+
+Line Explanation:
+- print(df.head()): Displays the first 5 rows of the dataset to understand the data structure and column names.
+
+---
+
+print(df.shape)
+
+Line Explanation:
+- print(df.shape): Prints the dimensions of the dataset (number of rows, number of columns).
+- Example output: (10000, 14) means 10,000 customers with 14 columns.
+
+---
+
+df.head()
+
+Line Explanation:
+- df.head(): Shows the first 5 rows again (similar to print(df.head())).
+- This displays the data in a formatted table in Jupyter notebooks.
+
+================================================================================
+SECTION 5: IMPORTING TENSORFLOW/KERAS
+================================================================================
+
+# pip install tensorflow ignore if already installed
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+
+Line Explanation:
+- Comment: Reminds user to install TensorFlow if not already installed (pip install tensorflow)
+- from tensorflow.keras.models import Sequential: Imports Sequential model class
+  - Sequential: A linear stack of layers for building neural networks
+  - Layers are added one after another in sequence
+- from tensorflow.keras.layers import Dense, Dropout: Imports layer types
+  - Dense: Fully connected layer where each neuron connects to all neurons in previous layer
+  - Dropout: Regularization layer that randomly drops neurons during training to prevent overfitting
+
+================================================================================
+SECTION 6: PREPARING FEATURES
+================================================================================
+
+# 2. Select features and target
+# Remove columns that are clearly not useful for prediction
+X = df.drop(columns=['RowNumber', 'CustomerId', 'Surname', 'Exited'])
+X
+
+Line Explanation:
+- Comment: Explains that we're selecting relevant features and removing unnecessary columns
+- X = df.drop(columns=['RowNumber', 'CustomerId', 'Surname', 'Exited']): Creates feature matrix
+  - Removes 'RowNumber': Just an index, not a predictive feature
+  - Removes 'CustomerId': Unique identifier, not useful for prediction
+  - Removes 'Surname': Personal name, not predictive
+  - Removes 'Exited': Target variable (what we want to predict)
+  - Keeps: CreditScore, Geography, Gender, Age, Tenure, Balance, NumOfProducts, HasCrCard, IsActiveMember, EstimatedSalary
+- X: Displays the feature matrix
+
+================================================================================
+SECTION 7: EXTRACTING TARGET VARIABLE
+================================================================================
+
+y = df['Exited']
+y
+
+Line Explanation:
+- y = df['Exited']: Extracts the target variable
+  - 'Exited' indicates whether customer left (1) or stayed (0)
+  - This is what the model will learn to predict
+- y: Displays the target variable
+
+================================================================================
+SECTION 8: TRAIN-TEST SPLIT
+================================================================================
+
+# Train-test split (80-20 usually good for neural nets)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+Line Explanation:
+- Comment: Explains that 80-20 split is commonly used for neural networks
+- train_test_split(): Divides data into training and testing sets
+  - X, y: Features and target to split
+  - test_size=0.2: Allocates 20% for testing, 80% for training
+  - random_state=42: Ensures reproducibility (same split each time)
+  - stratify=y: Maintains the same proportion of churned/non-churned customers in both sets
+- X_train: Training features (80%)
+- X_test: Testing features (20%)
+- y_train: Training labels (80%)
+- y_test: Testing labels (20%)
+
+---
+
+X_train.shape, X_test.shape
+
+Line Explanation:
+- Displays the shapes of training and testing sets to verify the split
+- Example output: ((8000, 10), (2000, 10)) means 8000 training samples and 2000 testing samples, each with 10 features
+
+================================================================================
+SECTION 9: ONE-HOT ENCODING CATEGORICAL FEATURES
+================================================================================
+
+# One-hot encode categorical features
+X_train = pd.get_dummies(X_train, drop_first=True)
+X_test = pd.get_dummies(X_test, drop_first=True)
+
+Line Explanation:
+- Comment: Explains that we're converting categorical variables to numerical format
+- pd.get_dummies(): Converts categorical columns to binary (0/1) columns
+  - Finds categorical columns (like 'Geography', 'Gender') and creates separate columns for each category
+  - Example: 'Geography' with values [France, Spain, Germany] becomes:
+    - Geography_Spain (1 if Spain, 0 otherwise)
+    - Geography_Germany (1 if Germany, 0 otherwise)
+    - France is represented when both are 0 (reference category)
+  - drop_first=True: Drops one category to avoid multicollinearity (dummy variable trap)
+    - Prevents redundant information where one category can be inferred from others
+- Applied to both X_train and X_test to ensure consistent encoding
+
+================================================================================
+SECTION 10: FEATURE SCALING
+================================================================================
+
+# Scale numeric values
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+Line Explanation:
+- Comment: Indicates we're normalizing numerical features
+- scaler = StandardScaler(): Creates a scaler object
+  - StandardScaler transforms features to have mean=0 and standard deviation=1
+  - Formula: (value - mean) / standard_deviation
+  - Important for neural networks as features with different scales can affect training
+- scaler.fit_transform(X_train): 
+  - fit(): Calculates mean and std from training data
+  - transform(): Applies the scaling transformation
+  - Combined in one step for training data
+- scaler.transform(X_test):
+  - Uses the mean and std calculated from training data
+  - Important: We don't fit on test data to avoid data leakage
+  - Ensures test data is scaled the same way as training data
+
+================================================================================
+SECTION 11: BUILDING THE NEURAL NETWORK MODEL
+================================================================================
+
+model = Sequential([
+    Dense(16, activation='relu', input_shape=(X_train.shape[1],)),
+    Dropout(0.2),
+    Dense(8, activation='relu'),
+    Dropout(0.2),
+    Dense(1, activation='sigmoid')  # Binary classification
+])
+
+Line Explanation:
+- model = Sequential([...]): Creates a sequential neural network with layers stacked linearly
+- Layer 1: Dense(16, activation='relu', input_shape=(X_train.shape[1],))
+  - Dense(16): Fully connected layer with 16 neurons
+  - activation='relu': ReLU (Rectified Linear Unit) activation function that outputs max(0, x)
+    - Helps model learn non-linear patterns
+    - Solves vanishing gradient problem
+  - input_shape=(X_train.shape[1],): Specifies input dimension (number of features)
+    - Only needed for first layer
+- Layer 2: Dropout(0.2)
+  - Randomly drops 20% of neurons during training
+  - Prevents overfitting by forcing the network to learn robust features
+  - Only active during training, not during prediction
+- Layer 3: Dense(8, activation='relu')
+  - Second hidden layer with 8 neurons
+  - Uses ReLU activation
+  - Learns higher-level abstractions from the first layer
+- Layer 4: Dropout(0.2)
+  - Another dropout layer with 20% dropout rate
+- Layer 5: Dense(1, activation='sigmoid')
+  - Output layer with 1 neuron (binary classification)
+  - activation='sigmoid': Outputs value between 0 and 1
+    - Can be interpreted as probability of customer churning
+    - Values > 0.5 typically classified as churn (1), <= 0.5 as no churn (0)
+
+Network Architecture Summary:
+Input (n features) → 16 neurons (ReLU) → Dropout → 8 neurons (ReLU) → Dropout → 1 neuron (Sigmoid) → Output
+
+================================================================================
+SECTION 12: COMPILING THE MODEL
+================================================================================
+
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+Line Explanation:
+- model.compile(): Configures the model for training by specifying:
+  - optimizer='adam': Adam optimization algorithm
+    - Adaptive learning rate optimizer
+    - Efficient and requires little tuning
+    - Combines benefits of AdaGrad and RMSProp
+    - Automatically adjusts learning rate during training
+  - loss='binary_crossentropy': Loss function for binary classification
+    - Measures difference between predicted probabilities and actual labels
+    - Formula: -[y*log(ŷ) + (1-y)*log(1-ŷ)]
+    - Penalizes confident wrong predictions more heavily
+  - metrics=['accuracy']: Tracks accuracy during training
+    - Percentage of correct predictions
+    - Used for monitoring, not for optimization (loss is used for that)
+
+================================================================================
+SECTION 13: TRAINING THE MODEL
+================================================================================
+
+history = model.fit(
+    X_train, y_train,
+    batch_size=32,
+    epochs=25,
+    validation_data=(X_test, y_test),
+    verbose=0
+)
+
+Line Explanation:
+- history = model.fit(): Trains the neural network and returns training history
+  - X_train, y_train: Training data (features and labels)
+  - batch_size=32: Number of samples processed before updating weights
+    - Doesn't process all data at once (too memory-intensive)
+    - Doesn't process one sample at a time (too slow and unstable)
+    - 32 samples is a good balance between speed and stability
+  - epochs=25: Number of complete passes through the training dataset
+    - Each epoch, the model sees all training samples
+    - 25 epochs gives the model multiple opportunities to learn
+  - validation_data=(X_test, y_test): Evaluates model on test data after each epoch
+    - Monitors performance on unseen data
+    - Helps detect overfitting (training accuracy increases but validation decreases)
+  - verbose=0: Suppresses training progress output
+    - verbose=1 would show progress bar
+    - verbose=2 would show one line per epoch
+- history: Stores training metrics (loss, accuracy) for each epoch
+
+Training Process:
+1. Forward pass: Input → Through layers → Output
+2. Calculate loss: Compare output to actual labels
+3. Backward pass: Calculate gradients using backpropagation
+4. Update weights: Adjust weights using Adam optimizer
+5. Repeat for all batches in epoch
+6. Validate on test set
+7. Repeat for 25 epochs
+
+================================================================================
+SECTION 14: MAKING PREDICTIONS
+================================================================================
+
+y_pred = (model.predict(X_test) > 0.5).astype(int)
+
+Line Explanation:
+- model.predict(X_test): Generates predictions for test data
+  - Returns probability values between 0 and 1 for each sample
+  - Example: [0.23, 0.87, 0.45, ...] represents churn probabilities
+- > 0.5: Applies threshold to convert probabilities to binary decisions
+  - Creates boolean array: [False, True, False, ...]
+  - True means probability > 0.5 (predict churn)
+  - False means probability <= 0.5 (predict no churn)
+- .astype(int): Converts boolean to integer
+  - True becomes 1 (churn)
+  - False becomes 0 (no churn)
+- y_pred: Final predictions as array of 0s and 1s
+
+Decision Process:
+- If model outputs 0.73 → 0.73 > 0.5 → True → 1 (predict churn)
+- If model outputs 0.28 → 0.28 > 0.5 → False → 0 (predict no churn)
+
+================================================================================
+SECTION 15: EVALUATING THE MODEL
+================================================================================
+
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
+
+Line Explanation:
+- print("Accuracy:", accuracy_score(y_test, y_pred)):
+  - Calculates overall prediction accuracy
+  - Formula: (Correct Predictions) / (Total Predictions)
+  - Example output: "Accuracy: 0.86" means 86% of predictions are correct
+
+- print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred)):
+  - \n: Adds newlines for better formatting
+  - confusion_matrix(): Creates a 2x2 matrix:
+    
+    [[TN  FP]
+     [FN  TP]]
+    
+    Where:
+    - TN (True Negative): Correctly predicted as no churn
+    - FP (False Positive): Incorrectly predicted as churn (but customer stayed)
+    - FN (False Negatives): Incorrectly predicted as no churn (but customer left)
+    - TP (True Positive): Correctly predicted as churn
+
+Business Interpretation:
+- TN: Good! Customer predicted to stay, and they did
+- FP: Customer predicted to leave, but they stayed (unnecessary retention effort)
+- FN: Dangerous! Missed a customer who actually left (lost revenue opportunity)
+- TP: Good! Identified a customer at risk and can take action
+
+================================================================================
+SUMMARY
+================================================================================
+
+This notebook demonstrates customer churn prediction using a Deep Learning approach:
+
+1. Data Loading: Loads customer data with demographics and account information
+2. Data Preparation:
+   - Removes irrelevant columns (IDs, names, row numbers)
+   - Separates features from target variable
+3. Train-Test Split: 80% training, 20% testing with stratification
+4. Data Preprocessing:
+   - One-hot encoding for categorical variables (Geography, Gender)
+   - Standard scaling for numerical features
+5. Neural Network Architecture:
+   - Input layer: All features
+   - Hidden layer 1: 16 neurons with ReLU activation
+   - Dropout: 20% regularization
+   - Hidden layer 2: 8 neurons with ReLU activation
+   - Dropout: 20% regularization
+   - Output layer: 1 neuron with sigmoid activation (probability output)
+6. Model Training:
+   - Adam optimizer for efficient learning
+   - Binary crossentropy loss for classification
+   - 25 epochs with batch size of 32
+   - Validation on test set after each epoch
+7. Evaluation:
+   - Converts probabilities to binary predictions using 0.5 threshold
+   - Calculates accuracy
+   - Displays confusion matrix for detailed performance analysis
+
+Key Concepts:
+- Deep learning can capture complex non-linear relationships in customer behavior
+- Dropout prevents overfitting by randomly deactivating neurons
+- Sigmoid activation outputs probabilities for binary classification
+- Confusion matrix reveals types of errors (false positives vs. false negatives)
+- This model helps businesses proactively identify at-risk customers for retention
